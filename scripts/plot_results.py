@@ -18,6 +18,9 @@ def render(fp16, awq, quality, target):
     validate_pair(fp16, awq)
     if fp16["identity"] != quality["identity"]:
         raise ValueError("Quality results refer to a different model revision")
+    for artifact in (fp16, awq):
+        if quality[f"{artifact['variant']}_checkpoint_id"] != artifact["server"]["checkpoint_id"]:
+            raise ValueError("Quality and serving runs used different checkpoints")
     target = Path(target)
     target.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({"figure.dpi": 140, "axes.spines.top": False, "axes.spines.right": False})
@@ -36,8 +39,8 @@ def render(fp16, awq, quality, target):
         ]
         medians = [median(v) for v in values]
         errors = [
-            [m - min(v) for m, v in zip(medians, values)],
-            [max(v) - m for m, v in zip(medians, values)],
+            [m - min(v) for m, v in zip(medians, values, strict=True)],
+            [max(v) - m for m, v in zip(medians, values, strict=True)],
         ]
         ax.errorbar(
             levels,
@@ -60,7 +63,9 @@ def render(fp16, awq, quality, target):
     plt.close(fig)
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharex=True)
-    for ax, metric, title in zip(axes, ("latency_s", "ttft_s"), ("End-to-end latency", "TTFT")):
+    for ax, metric, title in zip(
+        axes, ("latency_s", "ttft_s"), ("End-to-end latency", "TTFT"), strict=True
+    ):
         for artifact in (fp16, awq):
             selected = [r for r in table if r["variant"] == artifact["variant"]]
             for quantile, style in (("p50", "-"), ("p99", "--")):
@@ -117,7 +122,8 @@ def render(fp16, awq, quality, target):
         f"{fp16['repeats']} repetitions. Seeded synthetic random-token inputs; no prompt cache.",
         "",
         "Both weight variants use vLLM continuous batching. These ratios isolate the weight "
-        "representation under this configuration; they do not isolate continuous batching's benefit.",
+        "representation under this configuration; they do not isolate "
+        "continuous batching's benefit.",
         "",
         "| Variant | Concurrency | Output tok/s | E2E p50 (s) | E2E p99 (s) | TTFT p50 (s) |",
         "|---|---:|---:|---:|---:|---:|",

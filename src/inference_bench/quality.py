@@ -35,6 +35,8 @@ def compare_quality(fp16, awq):
         "identity": fp16["identity"],
         "eval_set_id": fp16["eval_set_id"],
         "questions": n,
+        "fp16_checkpoint_id": fp16["server"]["checkpoint_id"],
+        "awq_checkpoint_id": awq["server"]["checkpoint_id"],
         "fp16_accuracy_pct": fp_accuracy,
         "awq_accuracy_pct": awq_accuracy,
         "accuracy_delta_pp_awq_minus_fp16": awq_accuracy - fp_accuracy,

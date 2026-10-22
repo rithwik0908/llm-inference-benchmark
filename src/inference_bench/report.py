@@ -26,6 +26,11 @@ def validate_pair(fp16, awq):
             b = {k: b[k] for k in ("name", "total_bytes", "capability", "uuid")}
         if a != b:
             raise ValueError(f"Serving {key} differs; rerun both variants on the same GPU/settings")
+    for package in ("torch", "vllm", "transformers", "compressed-tensors"):
+        a = fp16["server"]["environment"]["packages"].get(package)
+        b = awq["server"]["environment"]["packages"].get(package)
+        if not a or a != b:
+            raise ValueError(f"Server package version differs or is missing: {package}")
     for artifact in (fp16, awq):
         expected = {
             (c, r) for c in artifact["concurrency_levels"] for r in range(artifact["repeats"])

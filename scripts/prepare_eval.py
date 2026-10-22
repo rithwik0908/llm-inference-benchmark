@@ -64,7 +64,9 @@ def main():
     for i, row in enumerate(rows):
         if len(row["choices"]) != 4 or row["answer"] not in list("ABCD"):
             raise ValueError(f"Invalid choices or answer in question {i}")
-        options = "\n".join(f"{letter}. {text}" for letter, text in zip("ABCD", row["choices"]))
+        options = "\n".join(
+            f"{letter}. {text}" for letter, text in zip("ABCD", row["choices"], strict=True)
+        )
         prompt = (
             f"{row['question']}\n\n{options}\n\n"
             "Answer with only the letter of the correct option (A, B, C, or D)."
