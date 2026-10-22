@@ -50,3 +50,25 @@ def test_frozen_content_identity_rejects_changed_inputs(tmp_path):
     write_json(path, content)
     with pytest.raises(ValueError, match="content hash mismatch"):
         read_frozen(path, "workload_id")
+
+
+def test_cuda_preflight_tracks_selected_device_and_rejects_small_vram(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from inference_bench.common import require_cuda
+
+    cuda = SimpleNamespace(
+        is_available=lambda: True,
+        device_count=lambda: 1,
+        mem_get_info=lambda: (7 * 1024**3, 8 * 1024**3),
+        get_device_name=lambda: "test GPU",
+        get_device_capability=lambda: (12, 0),
+        get_device_properties=lambda device: SimpleNamespace(uuid="selected-logical-GPU"),
+    )
+    monkeypatch.setitem(
+        sys.modules, "torch", SimpleNamespace(cuda=cuda, version=SimpleNamespace(cuda="test"))
+    )
+    assert require_cuda()["uuid"] == "selected-logical-GPU"
+    with pytest.raises(RuntimeError, match="Colab A100/L4"):
+        require_cuda(22)

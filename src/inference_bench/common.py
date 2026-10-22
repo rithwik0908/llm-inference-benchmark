@@ -100,7 +100,8 @@ def require_cuda(min_gib=0):
         "free_bytes": free,
         "capability": list(torch.cuda.get_device_capability()),
         "cuda": torch.version.cuda,
-        "uuid": command_output(["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"]),
+        # CUDA logical device 0 honors CUDA_VISIBLE_DEVICES; nvidia-smi lists all GPUs.
+        "uuid": str(torch.cuda.get_device_properties(0).uuid),
     }
 
 
