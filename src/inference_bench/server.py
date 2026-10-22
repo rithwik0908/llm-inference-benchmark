@@ -61,8 +61,12 @@ def main():
     manifest_path = args.manifest or f"results/server_{args.variant}.json"
     settings = cfg["serving"]
     alias = f"benchmark-{args.variant}-{uuid.uuid4().hex[:12]}"
+    # Notebook kernels need not put the GPU virtualenv on PATH. Keep the CLI
+    # in the same interpreter that imported this launcher.
     argv = [
-        "vllm",
+        sys.executable,
+        "-m",
+        "vllm.entrypoints.cli.main",
         "serve",
         cfg["model"] if args.variant == "fp16" else args.model_path,
         "--served-model-name",
