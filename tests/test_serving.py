@@ -153,3 +153,41 @@ def test_load_sweep_persists_valid_json_csv(tmp_path):
             await runner.cleanup()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("empty_text", [True, False])
+def test_replay_captures_raw_events_and_distinguishes_invisible_text(empty_text):
+    async def scenario():
+        async def handler(request):
+            event = {
+                "choices": [{"text": "" if empty_text else "visible", "finish_reason": "length"}],
+                "usage": {"prompt_tokens": 2, "completion_tokens": 3},
+            }
+            return web.Response(
+                text=f"data: {json.dumps(event)}\n\ndata: [DONE]\n\n",
+                content_type="text/event-stream",
+            )
+
+        runner, url = await fake_server(handler)
+        try:
+            async with aiohttp.ClientSession() as session:
+                result = await stream_request(
+                    session, url, "test", [1, 2], 3, 244, capture_events=True
+                )
+            assert result["events"][-1] == "[DONE]"
+            assert json.loads(result["events"][0])["usage"]["completion_tokens"] == 3
+            assert result["success"] is not empty_text
+            if empty_text:
+                assert result["error"] == "RuntimeError: Incomplete stream: missing nonempty_text"
+                assert result["stream_diagnostics"] == {
+                    "done": True,
+                    "nonempty_text_chunks": 0,
+                    "finish_reason": "length",
+                    "usage": {"prompt_tokens": 2, "completion_tokens": 3},
+                    "event_count": 2,
+                }
+                assert result["output_tokens"] == 0  # Validation has not been relaxed.
+        finally:
+            await runner.cleanup()
+
+    asyncio.run(scenario())

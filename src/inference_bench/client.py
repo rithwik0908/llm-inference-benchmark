@@ -31,12 +31,17 @@ async def sse_events(content):
         yield "\n".join(data)
 
 
-async def stream_request(session, base_url, model, prompt_ids, output_tokens, request_id):
+async def stream_request(
+    session, base_url, model, prompt_ids, output_tokens, request_id, *, capture_events=False
+):
     start = time.perf_counter()
     first = None
     usage = None
     done = False
     finish = None
+    event_count = 0
+    nonempty_chunks = 0
+    events = [] if capture_events else None
     payload = {
         "model": model,
         "prompt": prompt_ids,
@@ -52,6 +57,9 @@ async def stream_request(session, base_url, model, prompt_ids, output_tokens, re
             if response.status != 200:
                 raise RuntimeError(f"HTTP {response.status}: {(await response.text())[:500]}")
             async for event in sse_events(response.content):
+                event_count += 1
+                if events is not None:
+                    events.append(event)
                 if event == "[DONE]":
                     done = True
                     break
@@ -61,12 +69,24 @@ async def stream_request(session, base_url, model, prompt_ids, output_tokens, re
                 if data.get("usage"):
                     usage = data["usage"]
                 for choice in data.get("choices", []):
-                    if choice.get("text") and first is None:
-                        first = time.perf_counter()
+                    if choice.get("text"):
+                        nonempty_chunks += 1
+                        if first is None:
+                            first = time.perf_counter()
                     if choice.get("finish_reason"):
                         finish = choice["finish_reason"]
         if not done or first is None or not usage or not finish:
-            raise RuntimeError("Incomplete stream: need DONE, text, finish_reason, and usage")
+            missing = [
+                name
+                for name, observed in (
+                    ("DONE", done),
+                    ("nonempty_text", first is not None),
+                    ("usage", bool(usage)),
+                    ("finish_reason", bool(finish)),
+                )
+                if not observed
+            ]
+            raise RuntimeError("Incomplete stream: missing " + ", ".join(missing))
         if usage["completion_tokens"] != output_tokens:
             raise RuntimeError("Output token count differs from fixed workload")
         if usage["prompt_tokens"] != len(prompt_ids):
@@ -79,6 +99,7 @@ async def stream_request(session, base_url, model, prompt_ids, output_tokens, re
             "latency_s": time.perf_counter() - start,
             "ttft_s": first - start,
             "finish_reason": finish,
+            **({"events": events} if capture_events else {}),
         }
     except Exception as exc:
         return {
@@ -88,4 +109,12 @@ async def stream_request(session, base_url, model, prompt_ids, output_tokens, re
             "latency_s": time.perf_counter() - start,
             "ttft_s": None,
             "error": f"{type(exc).__name__}: {exc}",
+            "stream_diagnostics": {
+                "done": done,
+                "nonempty_text_chunks": nonempty_chunks,
+                "finish_reason": finish,
+                "usage": usage,
+                "event_count": event_count,
+            },
+            **({"events": events} if capture_events else {}),
         }
