@@ -16,6 +16,15 @@ def read_json(path):
     return json.loads(Path(path).read_text())
 
 
+def read_frozen(path, id_key):
+    artifact = read_json(path)
+    expected = artifact.get(id_key)
+    actual = digest({k: v for k, v in artifact.items() if k != id_key})
+    if expected != actual:
+        raise ValueError(f"Frozen input content hash mismatch: {path}")
+    return artifact
+
+
 def config():
     return read_json(ROOT / "configs/experiment.json")
 
@@ -30,11 +39,11 @@ def file_digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def write_json(path, value):
+def write_json(path, value, *, compact=False):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     # Serialize before opening a file so NaN/Infinity never leave partial artifacts.
-    data = json.dumps(value, indent=2, allow_nan=False) + "\n"
+    data = json.dumps(value, indent=None if compact else 2, allow_nan=False) + "\n"
     with tempfile.NamedTemporaryFile(mode="w", dir=target.parent, delete=False) as handle:
         handle.write(data)
         temporary = Path(handle.name)

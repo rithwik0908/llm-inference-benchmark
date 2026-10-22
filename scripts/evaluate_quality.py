@@ -6,12 +6,12 @@ import asyncio
 import aiohttp
 
 from inference_bench.client import validate_server
-from inference_bench.common import identity, provenance, read_json, write_json
+from inference_bench.common import identity, provenance, read_frozen, read_json, write_json
 from inference_bench.quality import compare_quality, parse_answer
 
 
 async def evaluate(args):
-    evaluation = read_json(args.eval_set)
+    evaluation = read_frozen(args.eval_set, "eval_set_id")
     server = read_json(args.server_manifest)
     if evaluation["identity"] != identity():
         raise ValueError("Evaluation set model revision does not match")

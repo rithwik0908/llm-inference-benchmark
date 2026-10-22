@@ -36,3 +36,17 @@ def test_atomic_strict_json_preserves_existing_file(tmp_path):
         write_json(path, {"x": math.nan})
     assert read_json(path) == {"x": 1}
     assert digest({"a": 1, "b": 2}) == digest({"b": 2, "a": 1})
+
+
+def test_frozen_content_identity_rejects_changed_inputs(tmp_path):
+    from inference_bench.common import read_frozen
+
+    path = tmp_path / "inputs.json"
+    content = {"prompts": [[1, 2, 3]]}
+    content["workload_id"] = digest(content)
+    write_json(path, content)
+    assert read_frozen(path, "workload_id") == content
+    content["prompts"][0][0] = 9
+    write_json(path, content)
+    with pytest.raises(ValueError, match="content hash mismatch"):
+        read_frozen(path, "workload_id")

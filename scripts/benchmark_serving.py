@@ -13,6 +13,7 @@ from inference_bench.common import (
     identity,
     positive,
     provenance,
+    read_frozen,
     read_json,
     write_json,
 )
@@ -43,7 +44,7 @@ async def run_pool(session, base_url, server, workload, concurrency):
 
 
 async def benchmark(args):
-    workload = read_json(args.workload)
+    workload = read_frozen(args.workload, "workload_id")
     server = read_json(args.server_manifest)
     if workload["identity"] != identity():
         raise ValueError("Workload identity differs from configured model")

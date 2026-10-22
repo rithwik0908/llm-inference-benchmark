@@ -54,3 +54,20 @@ def test_quality_comparison_rejects_mismatched_runs(change):
     b[change] = "different"
     with pytest.raises(ValueError):
         compare_quality(a, b)
+
+
+def test_quality_questions_reject_duplicates_and_malformed_choices():
+    from inference_bench.quality import validate_questions
+
+    rows = [
+        {"question": f"Question {i}", "choices": ["a", "b", "c", "d"], "answer": "A"}
+        for i in range(30)
+    ]
+    validate_questions(rows)
+    duplicate = copy.deepcopy(rows)
+    duplicate[-1] = duplicate[0]
+    with pytest.raises(ValueError, match="Duplicate"):
+        validate_questions(duplicate)
+    rows[0]["choices"] = ["a"]
+    with pytest.raises(ValueError, match="Invalid"):
+        validate_questions(rows)

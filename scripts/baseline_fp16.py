@@ -8,7 +8,7 @@ from inference_bench.common import (
     identity,
     positive,
     provenance,
-    read_json,
+    read_frozen,
     require_cuda,
     write_json,
 )
@@ -16,18 +16,20 @@ from inference_bench.metrics import percentile
 
 
 def main():
-    import torch
-    from transformers import AutoModelForCausalLM
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workload", default="results/workload.json")
     parser.add_argument("--runs", type=positive, default=10)
     parser.add_argument("--warmup", type=positive, default=2)
     parser.add_argument("--output", default="results/baseline_fp16.json")
     args = parser.parse_args()
+
+    import torch
+    from huggingface_hub import snapshot_download
+    from transformers import AutoModelForCausalLM
+
     cfg = config()
     gpu = require_cuda(22)  # Nominal 24 GB L4 cards expose slightly less than 24 GiB.
-    workload = read_json(args.workload)
+    workload = read_frozen(args.workload, "workload_id")
     if workload["identity"] != identity():
         raise ValueError("Workload was prepared for a different model revision")
     torch.manual_seed(cfg["seed"])
@@ -39,6 +41,13 @@ def main():
         device_map={"": "cuda:0"},
         attn_implementation="sdpa",
     ).eval()
+    snapshot = snapshot_download(cfg["model"], revision=cfg["revision"], local_files_only=True)
+    from pathlib import Path
+
+    weight_files = list(Path(snapshot).glob("model*.safetensors"))
+    if not weight_files:
+        raise RuntimeError("Expected cached safetensors shards for checkpoint storage measurement")
+    checkpoint_bytes = sum(p.stat().st_size for p in weight_files)
     load_peak = torch.cuda.max_memory_allocated()
     inputs = torch.tensor([workload["prompts"][0]], device="cuda")
     mask = torch.ones_like(inputs)
@@ -108,6 +117,8 @@ def main():
         "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
         "peak_reserved_bytes": torch.cuda.max_memory_reserved(),
         "load_peak_allocated_bytes": load_peak,
+        "source_checkpoint_safetensors_bytes": checkpoint_bytes,
+        "source_weight_file_sizes": {p.name: p.stat().st_size for p in weight_files},
         "summary": {
             key + "_p50": percentile([r[key] for r in rows], 0.5)
             for key in ("ttft_s", "latency_s", "output_tokens_per_s")

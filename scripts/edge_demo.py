@@ -13,14 +13,15 @@ from inference_bench.server import checkpoint_manifest
 
 
 def main():
-    from transformers import AutoTokenizer
-    from vllm import LLM, SamplingParams
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-path", default="models/mistral-7b-awq")
     parser.add_argument("--prompt", default="Explain continuous batching in three short sentences.")
     parser.add_argument("--output", default="results/edge_demo.json")
     args = parser.parse_args()
+
+    from transformers import AutoTokenizer
+    from vllm import LLM, SamplingParams
+
     gpu = require_cuda(6)
     manifest = checkpoint_manifest(args.model_path)
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, local_files_only=True)

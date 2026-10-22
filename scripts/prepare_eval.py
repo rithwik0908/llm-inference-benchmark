@@ -7,15 +7,17 @@ from collections import defaultdict
 from pathlib import Path
 
 from inference_bench.common import config, digest, identity, write_json
+from inference_bench.quality import validate_questions
 
 
 def main():
-    from transformers import AutoTokenizer
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--custom-jsonl", help="Rows: question, choices (4 strings), answer (A-D)")
     parser.add_argument("--output", default="results/eval_set.json")
     args = parser.parse_args()
+
+    from transformers import AutoTokenizer
+
     cfg = config()
     tokenizer = AutoTokenizer.from_pretrained(cfg["model"], revision=cfg["revision"])
     if args.custom_jsonl:
@@ -58,12 +60,9 @@ def main():
             "selection": "shuffled subjects and questions; subject round-robin",
             "seed": cfg["seed"],
         }
-    if not 30 <= len(rows) <= 50:
-        raise ValueError("Supply 30-50 questions to match the declared evaluation scope")
+    validate_questions(rows)
     questions = []
     for i, row in enumerate(rows):
-        if len(row["choices"]) != 4 or row["answer"] not in list("ABCD"):
-            raise ValueError(f"Invalid choices or answer in question {i}")
         options = "\n".join(
             f"{letter}. {text}" for letter, text in zip("ABCD", row["choices"], strict=True)
         )

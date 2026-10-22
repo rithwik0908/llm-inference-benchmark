@@ -9,7 +9,7 @@ import pytest
 from aiohttp import web
 
 from inference_bench.client import stream_request
-from inference_bench.common import identity, read_json, write_json
+from inference_bench.common import digest, identity, read_json, write_json
 from scripts.benchmark_serving import benchmark, run_pool
 
 
@@ -123,16 +123,14 @@ def test_load_sweep_persists_valid_json_csv(tmp_path):
         workload = tmp_path / "workload.json"
         output = tmp_path / "output.json"
         write_json(server, {"identity": identity(), "variant": "fp16", "served_model_name": "test"})
-        write_json(
-            workload,
-            {
-                "identity": identity(),
-                "workload_id": "test-only",
-                "prompts": [[1, 2]] * 8,
-                "input_tokens": 2,
-                "output_tokens": 3,
-            },
-        )
+        frozen = {
+            "identity": identity(),
+            "prompts": [[1, 2]] * 8,
+            "input_tokens": 2,
+            "output_tokens": 3,
+        }
+        frozen["workload_id"] = digest(frozen)
+        write_json(workload, frozen)
         args = argparse.Namespace(
             server_manifest=server,
             workload=workload,

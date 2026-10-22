@@ -16,13 +16,19 @@
     "split": "test",
     "samples": 50
   },
-  "workload": {"input_tokens": 256, "output_tokens": 128, "requests": 512},
+  "workload": {
+    "input_tokens": 256,
+    "output_tokens": 128,
+    "requests": 512
+  },
   "serving": {
     "max_model_len": 2048,
     "max_num_seqs": 32,
     "gpu_memory_utilization": 0.9,
     "dtype": "float16",
     "prefix_caching": false,
-    "enforce_eager": true
+    "enforce_eager": true,
+    "max_num_batched_tokens": 2048,
+    "enable_chunked_prefill": true
   }
 }

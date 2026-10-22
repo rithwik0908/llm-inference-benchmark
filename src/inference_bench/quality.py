@@ -6,6 +6,27 @@ import re
 from inference_bench.metrics import percentile
 
 
+def validate_questions(rows):
+    if not 30 <= len(rows) <= 50:
+        raise ValueError("Supply 30-50 questions to match the declared evaluation scope")
+    seen = set()
+    for i, row in enumerate(rows):
+        question, choices, answer = row.get("question"), row.get("choices"), row.get("answer")
+        if (
+            not isinstance(question, str)
+            or not question.strip()
+            or not isinstance(choices, list)
+            or len(choices) != 4
+            or any(not isinstance(c, str) or not c.strip() for c in choices)
+            or answer not in list("ABCD")
+        ):
+            raise ValueError(f"Invalid question, choices, or answer in row {i}")
+        key = (question, tuple(choices))
+        if key in seen:
+            raise ValueError(f"Duplicate question in row {i}")
+        seen.add(key)
+
+
 def parse_answer(text):
     match = re.match(r"^\s*([ABCD])(?:[.)\s]|$)", text)
     return match.group(1) if match else None

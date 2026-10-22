@@ -82,7 +82,19 @@ def test_charts_csv_and_writeup_render_from_valid_data(tmp_path):
         "resolution_pp": 2,
         "limitations": "Synthetic test data only.",
     }
-    render(a, b, quality, tmp_path)
-    for name in ("throughput.png", "latency.png", "quality.png", "summary.csv", "REPORT.md"):
+    baseline = {
+        "identity": identity(),
+        "source_checkpoint_safetensors_bytes": 100,
+        "gpu": a["server"]["gpu"],
+        "summary": {"output_tokens_per_s_p50": 1, "ttft_s_p50": 0.1},
+        "peak_allocated_bytes": 100,
+    }
+    quantization = {
+        "identity": identity(),
+        "checkpoint_id": "test-checkpoint",
+        "weights": {"fixture.safetensors": {"bytes": 50}},
+    }
+    render(a, b, quality, tmp_path, baseline, quantization)
+    for name in ("throughput.png", "latency.png", "memory_quality.png", "summary.csv", "REPORT.md"):
         assert (tmp_path / name).stat().st_size > 100
     assert "1.00×" in (tmp_path / "REPORT.md").read_text()

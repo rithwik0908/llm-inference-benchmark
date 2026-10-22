@@ -18,17 +18,18 @@ from inference_bench.common import (
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", default="models/mistral-7b-awq")
+    parser.add_argument("--samples", type=positive)
+    parser.add_argument("--results", default="results/quantization.json")
+    args = parser.parse_args()
+
     import torch
     from datasets import load_dataset
     from llmcompressor import oneshot
     from llmcompressor.modifiers.awq import AWQModifier
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", default="models/mistral-7b-awq")
-    parser.add_argument("--samples", type=positive)
-    parser.add_argument("--results", default="results/quantization.json")
-    args = parser.parse_args()
     target = Path(args.output)
     if target.exists() and any(target.iterdir()):
         raise FileExistsError(f"Refusing to overwrite nonempty checkpoint directory: {target}")

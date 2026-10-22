@@ -1,3 +1,4 @@
-# Unified supported stack; vLLM and llm-compressor both require compressed-tensors 0.13.
-# Python 3.11/3.12, Linux, CUDA-capable NVIDIA driver. See README for clean environments.
--e .[gpu,dev]
+# Unified GPU stack, including calibration, serving, and development tools.
+# Run from the repository root on Linux, Python 3.11/3.12.
+-r gpu.lock.txt
+-e .

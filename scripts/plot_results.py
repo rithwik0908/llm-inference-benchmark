@@ -14,13 +14,19 @@ from inference_bench.common import read_json
 from inference_bench.report import serving_table, validate_pair
 
 
-def render(fp16, awq, quality, target):
+def render(fp16, awq, quality, target, baseline, quantization):
     validate_pair(fp16, awq)
     if fp16["identity"] != quality["identity"]:
         raise ValueError("Quality results refer to a different model revision")
     for artifact in (fp16, awq):
         if quality[f"{artifact['variant']}_checkpoint_id"] != artifact["server"]["checkpoint_id"]:
             raise ValueError("Quality and serving runs used different checkpoints")
+    if baseline["identity"] != fp16["identity"] or quantization["identity"] != fp16["identity"]:
+        raise ValueError("Storage/baseline artifacts use a different model revision")
+    if baseline["gpu"]["uuid"] != fp16["server"]["gpu"]["uuid"]:
+        raise ValueError("Baseline and serving runs used different physical GPUs")
+    if quantization["checkpoint_id"] != awq["server"]["checkpoint_id"]:
+        raise ValueError("Quantization and serving checkpoints differ")
     target = Path(target)
     target.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({"figure.dpi": 140, "axes.spines.top": False, "axes.spines.right": False})
@@ -85,7 +91,26 @@ def render(fp16, awq, quality, target):
     fig.savefig(target / "latency.png")
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, (memory_ax, ax) = plt.subplots(1, 2, figsize=(11, 4))
+    source_bytes = baseline["source_checkpoint_safetensors_bytes"]
+    quantized_bytes = sum(w["bytes"] for w in quantization["weights"].values())
+    memory_ax.bar(
+        ["Original 16-bit", "AWQ 4-bit"],
+        [source_bytes / 1e9, quantized_bytes / 1e9],
+        color=list(colors.values()),
+    )
+    memory_ax.set(
+        ylabel="Safetensors checkpoint size (GB, decimal)", title="Weight storage footprint"
+    )
+    memory_ax.text(
+        0.5,
+        0.03,
+        "Measured file bytes; excludes KV cache/runtime VRAM",
+        transform=memory_ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=8,
+    )
     ax.bar(
         ["FP16", "AWQ"],
         [quality["fp16_accuracy_pct"], quality["awq_accuracy_pct"]],
@@ -109,7 +134,7 @@ def render(fp16, awq, quality, target):
         fontsize=9,
     )
     fig.tight_layout()
-    fig.savefig(target / "quality.png")
+    fig.savefig(target / "memory_quality.png")
     plt.close(fig)
 
     text = [
@@ -144,6 +169,14 @@ def render(fp16, awq, quality, target):
         )
     text += [
         "",
+        "Transformers FP16 single-request baseline (separate execution path): "
+        f"{baseline['summary']['output_tokens_per_s_p50']:.2f} output tok/s, "
+        f"TTFT {baseline['summary']['ttft_s_p50']:.3f} s; "
+        f"peak allocated VRAM {baseline['peak_allocated_bytes'] / 1024**3:.2f} GiB.",
+        "",
+        f"Weight-file storage: original 16-bit {source_bytes / 1e9:.2f} GB; "
+        f"AWQ {quantized_bytes / 1e9:.2f} GB. This is not runtime VRAM usage.",
+        "",
         f"Quality: FP16 {quality['fp16_accuracy_pct']:.1f}%, "
         f"AWQ {quality['awq_accuracy_pct']:.1f}%; delta {delta:+.1f} percentage points "
         f"(paired bootstrap 95% CI [{low:+.1f}, {high:+.1f}]).",
@@ -152,7 +185,7 @@ def render(fp16, awq, quality, target):
         "",
         "![Throughput](throughput.png)",
         "![Latency](latency.png)",
-        "![Quality](quality.png)",
+        "![Storage and quality](memory_quality.png)",
         "",
         "Interpretation is limited to this GPU, software stack, token budget, closed-loop "
         "load, and question subset. Review raw JSON, errors, and startup logs before making "
@@ -168,12 +201,21 @@ def main():
     parser.add_argument("--fp16", default="results/serving_fp16.json")
     parser.add_argument("--awq", default="results/serving_awq.json")
     parser.add_argument("--quality", default="results/quality_delta.json")
+    parser.add_argument("--baseline", default="results/baseline_fp16.json")
+    parser.add_argument("--quantization", default="results/quantization.json")
     parser.add_argument("--output-dir", default="results")
     args = parser.parse_args()
-    for path in (args.fp16, args.awq, args.quality):
+    for path in (args.fp16, args.awq, args.quality, args.baseline, args.quantization):
         if not Path(path).is_file():
             parser.error(f"No measured artifact at {path}. Run the GPU workflow first.")
-    render(read_json(args.fp16), read_json(args.awq), read_json(args.quality), args.output_dir)
+    render(
+        read_json(args.fp16),
+        read_json(args.awq),
+        read_json(args.quality),
+        args.output_dir,
+        read_json(args.baseline),
+        read_json(args.quantization),
+    )
     print(f"Wrote three charts, summary.csv, and REPORT.md in {args.output_dir}")
 
 

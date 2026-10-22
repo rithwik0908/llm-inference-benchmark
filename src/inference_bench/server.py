@@ -80,15 +80,18 @@ def main():
         "--gpu-memory-utilization",
         str(settings["gpu_memory_utilization"]),
         "--max-num-batched-tokens",
-        "2048",
-        "--no-enable-prefix-caching",
-        "--enable-chunked-prefill",
-        "--enforce-eager",
+        str(settings["max_num_batched_tokens"]),
+        "--enable-prefix-caching" if settings["prefix_caching"] else "--no-enable-prefix-caching",
+        "--enable-chunked-prefill"
+        if settings["enable_chunked_prefill"]
+        else "--no-enable-chunked-prefill",
         "--seed",
         str(cfg["seed"]),
         "--generation-config",
         "vllm",
     ]
+    if settings["enforce_eager"]:
+        argv += ["--enforce-eager"]
     checkpoint = None
     if args.variant == "fp16":
         argv += ["--revision", cfg["revision"], "--tokenizer-revision", cfg["revision"]]
