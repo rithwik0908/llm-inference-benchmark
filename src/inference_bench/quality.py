@@ -31,16 +31,21 @@ def compare_quality(fp16, awq):
     fp_accuracy = 100 * sum(r["correct"] for r in before) / n
     awq_accuracy = 100 * sum(r["correct"] for r in after) / n
     return {
-        "schema_version": 1, "identity": fp16["identity"], "eval_set_id": fp16["eval_set_id"],
-        "questions": n, "fp16_accuracy_pct": fp_accuracy, "awq_accuracy_pct": awq_accuracy,
+        "schema_version": 1,
+        "identity": fp16["identity"],
+        "eval_set_id": fp16["eval_set_id"],
+        "questions": n,
+        "fp16_accuracy_pct": fp_accuracy,
+        "awq_accuracy_pct": awq_accuracy,
         "accuracy_delta_pp_awq_minus_fp16": awq_accuracy - fp_accuracy,
         "paired_bootstrap_95ci_pp": [percentile(bootstrap, 0.025), percentile(bootstrap, 0.975)],
         "fp16_invalid": sum(r["prediction"] is None for r in before),
         "awq_invalid": sum(r["prediction"] is None for r in after),
-        "changed_answers": sum(a["prediction"] != b["prediction"]
-                               for a, b in zip(before, after, strict=True)),
+        "changed_answers": sum(
+            a["prediction"] != b["prediction"] for a, b in zip(before, after, strict=True)
+        ),
         "resolution_pp": 100 / n,
         "limitations": "Small zero-shot smoke evaluation, not full MMLU. CI resamples questions "
-                        "as independent and does not establish quality equivalence. Invalid "
-                        "answers count as wrong; transport errors abort evaluation.",
+        "as independent and does not establish quality equivalence. Invalid "
+        "answers count as wrong; transport errors abort evaluation.",
     }

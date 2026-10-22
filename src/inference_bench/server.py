@@ -37,8 +37,13 @@ def checkpoint_manifest(path):
         if hasher.hexdigest() != expected["sha256"]:
             raise ValueError(f"Checkpoint hash mismatch: {name}")
     actual_config = read_json(root / "config.json")["quantization_config"]
-    expected_id = digest({"identity": identity(), "weights": manifest["weights"],
-                          "quantization_config": actual_config})
+    expected_id = digest(
+        {
+            "identity": identity(),
+            "weights": manifest["weights"],
+            "quantization_config": actual_config,
+        }
+    )
     if expected_id != manifest["checkpoint_id"]:
         raise ValueError("Checkpoint quantization config/manifest mismatch")
     return manifest
@@ -57,14 +62,32 @@ def main():
     settings = cfg["serving"]
     alias = f"benchmark-{args.variant}-{uuid.uuid4().hex[:12]}"
     argv = [
-        "vllm", "serve", cfg["model"] if args.variant == "fp16" else args.model_path,
-        "--served-model-name", alias, "--host", "0.0.0.0", "--port", str(args.port),
-        "--dtype", settings["dtype"], "--max-model-len", str(settings["max_model_len"]),
-        "--max-num-seqs", str(settings["max_num_seqs"]),
-        "--gpu-memory-utilization", str(settings["gpu_memory_utilization"]),
-        "--max-num-batched-tokens", "2048", "--no-enable-prefix-caching",
-        "--enable-chunked-prefill", "--enforce-eager", "--seed", str(cfg["seed"]),
-        "--generation-config", "vllm",
+        "vllm",
+        "serve",
+        cfg["model"] if args.variant == "fp16" else args.model_path,
+        "--served-model-name",
+        alias,
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(args.port),
+        "--dtype",
+        settings["dtype"],
+        "--max-model-len",
+        str(settings["max_model_len"]),
+        "--max-num-seqs",
+        str(settings["max_num_seqs"]),
+        "--gpu-memory-utilization",
+        str(settings["gpu_memory_utilization"]),
+        "--max-num-batched-tokens",
+        "2048",
+        "--no-enable-prefix-caching",
+        "--enable-chunked-prefill",
+        "--enforce-eager",
+        "--seed",
+        str(cfg["seed"]),
+        "--generation-config",
+        "vllm",
     ]
     checkpoint = None
     if args.variant == "fp16":
@@ -73,12 +96,18 @@ def main():
         checkpoint = checkpoint_manifest(args.model_path)
         argv += ["--quantization", "compressed-tensors"]
     report = {
-        "schema_version": 1, "variant": args.variant, "identity": identity(),
-        "served_model_name": alias, "environment": provenance(), "gpu": gpu,
-        "serving_settings": settings, "command": argv,
+        "schema_version": 1,
+        "variant": args.variant,
+        "identity": identity(),
+        "served_model_name": alias,
+        "environment": provenance(),
+        "gpu": gpu,
+        "serving_settings": settings,
+        "command": argv,
         "checkpoint_id": checkpoint["checkpoint_id"] if checkpoint else digest(identity()),
         "model_config_sha256": file_digest(Path(args.model_path) / "config.json")
-                               if checkpoint else None,
+        if checkpoint
+        else None,
     }
     write_json(manifest_path, report)
     print(f"Server manifest: {manifest_path}; wait for /health before clients", flush=True)

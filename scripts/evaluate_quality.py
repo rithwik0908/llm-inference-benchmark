@@ -20,20 +20,37 @@ async def evaluate(args):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=180)) as session:
         await validate_server(session, args.base_url, server)
         for question in evaluation["questions"]:
-            payload = {"model": server["served_model_name"],
-                       "prompt": question["prompt_token_ids"], **generation}
+            payload = {
+                "model": server["served_model_name"],
+                "prompt": question["prompt_token_ids"],
+                **generation,
+            }
             async with session.post(args.base_url + "/v1/completions", json=payload) as response:
                 response.raise_for_status()  # Transport failures must never count as model errors.
                 data = await response.json()
             text = data["choices"][0]["text"]
             prediction = parse_answer(text)
-            rows.append({"id": question["id"], "answer": question["answer"],
-                         "prediction": prediction, "correct": prediction == question["answer"],
-                         "text": text, "usage": data["usage"]})
-    result = {"schema_version": 1, "variant": server["variant"], "identity": identity(),
-              "eval_set_id": evaluation["eval_set_id"], "generation": generation,
-              "server": server, "environment": provenance(), "rows": rows,
-              "accuracy_pct": 100 * sum(r["correct"] for r in rows) / len(rows)}
+            rows.append(
+                {
+                    "id": question["id"],
+                    "answer": question["answer"],
+                    "prediction": prediction,
+                    "correct": prediction == question["answer"],
+                    "text": text,
+                    "usage": data["usage"],
+                }
+            )
+    result = {
+        "schema_version": 1,
+        "variant": server["variant"],
+        "identity": identity(),
+        "eval_set_id": evaluation["eval_set_id"],
+        "generation": generation,
+        "server": server,
+        "environment": provenance(),
+        "rows": rows,
+        "accuracy_pct": 100 * sum(r["correct"] for r in rows) / len(rows),
+    }
     write_json(args.output or f"results/quality_{server['variant']}.json", result)
     print(f"Accuracy: {result['accuracy_pct']:.1f}% on {len(rows)} questions")
 

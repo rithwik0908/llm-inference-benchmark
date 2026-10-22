@@ -17,8 +17,10 @@ def summarize(rows, elapsed_s):
         raise ValueError("Need requests and positive elapsed time")
     good = [r for r in rows if r["success"]]
     result = {
-        "requests": len(rows), "successful_requests": len(good),
-        "failed_requests": len(rows) - len(good), "elapsed_s": elapsed_s,
+        "requests": len(rows),
+        "successful_requests": len(good),
+        "failed_requests": len(rows) - len(good),
+        "elapsed_s": elapsed_s,
         "output_tokens": sum(r["output_tokens"] for r in good),
     }
     result["output_tokens_per_s"] = result["output_tokens"] / elapsed_s

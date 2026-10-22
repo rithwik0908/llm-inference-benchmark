@@ -40,18 +40,26 @@ def main():
     torch.manual_seed(cfg["seed"])
     tokenizer = AutoTokenizer.from_pretrained(cfg["model"], revision=cfg["revision"])
     model = AutoModelForCausalLM.from_pretrained(
-        cfg["model"], revision=cfg["revision"], dtype=torch.float16,
+        cfg["model"],
+        revision=cfg["revision"],
+        dtype=torch.float16,
         attn_implementation="sdpa",
     ).eval()  # CPU staging; oneshot's sequential pipeline handles device dispatch.
     ds = load_dataset(
-        calibration["dataset"], revision=calibration["revision"],
+        calibration["dataset"],
+        revision=calibration["revision"],
         split=f"{calibration['split']}[:{calibration['samples']}]",
     ).shuffle(seed=cfg["seed"])
 
     def tokenize(row):
         text = tokenizer.apply_chat_template(row["messages"], tokenize=False)
-        return tokenizer(text, add_special_tokens=False, truncation=True,
-                         max_length=calibration["max_seq_length"], padding=False)
+        return tokenizer(
+            text,
+            add_special_tokens=False,
+            truncation=True,
+            max_length=calibration["max_seq_length"],
+            padding=False,
+        )
 
     ds = ds.map(tokenize, remove_columns=ds.column_names)
     calibration["tokenized_sha256"] = digest(ds.to_dict())
@@ -62,7 +70,9 @@ def main():
     torch.cuda.synchronize()
     start = time.perf_counter()
     oneshot(
-        model=model, dataset=ds, recipe=[recipe],
+        model=model,
+        dataset=ds,
+        recipe=[recipe],
         max_seq_length=calibration["max_seq_length"],
         num_calibration_samples=calibration["samples"],
     )
@@ -88,18 +98,27 @@ def main():
     if not weight_hashes:
         raise RuntimeError("No safetensors weights were saved")
     result = {
-        "schema_version": 1, "identity": identity(), "variant": "awq",
-        "algorithm": "AWQ", "scheme": "W4A16_ASYM", "group_size": 128,
-        "ignored_modules": ["lm_head"], "calibration": calibration,
-        "environment": provenance(), "gpu": gpu, "quantization_s": quantization_s,
+        "schema_version": 1,
+        "identity": identity(),
+        "variant": "awq",
+        "algorithm": "AWQ",
+        "scheme": "W4A16_ASYM",
+        "group_size": 128,
+        "ignored_modules": ["lm_head"],
+        "calibration": calibration,
+        "environment": provenance(),
+        "gpu": gpu,
+        "quantization_s": quantization_s,
         "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
-        "checkpoint_path": str(target), "weights": weight_hashes,
+        "checkpoint_path": str(target),
+        "weights": weight_hashes,
         "quantization_config": quant_config,
         "notes": "First N UltraChat train_sft rows, shuffled; not a population-random sample. "
-                 "Calibration data is disjoint from MMLU test evaluation. Timing excludes save/hash.",
+        "Calibration data is disjoint from MMLU test evaluation. Timing excludes save/hash.",
     }
-    result["checkpoint_id"] = digest({"identity": identity(), "weights": weight_hashes,
-                                      "quantization_config": quant_config})
+    result["checkpoint_id"] = digest(
+        {"identity": identity(), "weights": weight_hashes, "quantization_config": quant_config}
+    )
     write_json(target / "benchmark_manifest.json", result)
     write_json(args.results, result)
     print(f"Saved {target}; quantization took {quantization_s / 60:.1f} minutes")

@@ -38,8 +38,13 @@ async def stream_request(session, base_url, model, prompt_ids, output_tokens, re
     done = False
     finish = None
     payload = {
-        "model": model, "prompt": prompt_ids, "temperature": 0, "seed": 42,
-        "max_tokens": output_tokens, "ignore_eos": True, "stream": True,
+        "model": model,
+        "prompt": prompt_ids,
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": output_tokens,
+        "ignore_eos": True,
+        "stream": True,
         "stream_options": {"include_usage": True},
     }
     try:
@@ -66,10 +71,21 @@ async def stream_request(session, base_url, model, prompt_ids, output_tokens, re
             raise RuntimeError("Output token count differs from fixed workload")
         if usage["prompt_tokens"] != len(prompt_ids):
             raise RuntimeError("Server prompt count differs from frozen input token IDs")
-        return {"id": request_id, "success": True, "output_tokens": usage["completion_tokens"],
-                "input_tokens": usage["prompt_tokens"], "latency_s": time.perf_counter() - start,
-                "ttft_s": first - start, "finish_reason": finish}
+        return {
+            "id": request_id,
+            "success": True,
+            "output_tokens": usage["completion_tokens"],
+            "input_tokens": usage["prompt_tokens"],
+            "latency_s": time.perf_counter() - start,
+            "ttft_s": first - start,
+            "finish_reason": finish,
+        }
     except Exception as exc:
-        return {"id": request_id, "success": False, "output_tokens": 0,
-                "latency_s": time.perf_counter() - start, "ttft_s": None,
-                "error": f"{type(exc).__name__}: {exc}"}
+        return {
+            "id": request_id,
+            "success": False,
+            "output_tokens": 0,
+            "latency_s": time.perf_counter() - start,
+            "ttft_s": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }

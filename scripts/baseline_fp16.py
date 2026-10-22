@@ -33,8 +33,11 @@ def main():
     torch.manual_seed(cfg["seed"])
     torch.cuda.reset_peak_memory_stats()
     model = AutoModelForCausalLM.from_pretrained(
-        cfg["model"], revision=cfg["revision"], dtype=torch.float16,
-        device_map={"": "cuda:0"}, attn_implementation="sdpa",
+        cfg["model"],
+        revision=cfg["revision"],
+        dtype=torch.float16,
+        device_map={"": "cuda:0"},
+        attn_implementation="sdpa",
     ).eval()
     load_peak = torch.cuda.max_memory_allocated()
     inputs = torch.tensor([workload["prompts"][0]], device="cuda")
@@ -64,8 +67,12 @@ def main():
         start = time.perf_counter()
         with torch.inference_mode():
             output = model.generate(
-                input_ids=inputs, attention_mask=mask, do_sample=False,
-                min_new_tokens=tokens, max_new_tokens=tokens, use_cache=True,
+                input_ids=inputs,
+                attention_mask=mask,
+                do_sample=False,
+                min_new_tokens=tokens,
+                max_new_tokens=tokens,
+                use_cache=True,
                 pad_token_id=model.generation_config.eos_token_id,
                 streamer=clock,
             )
@@ -75,8 +82,10 @@ def main():
         if generated != tokens or clock.first is None:
             raise RuntimeError("Generation did not produce the requested token budget")
         return {
-            "input_tokens": inputs.shape[1], "output_tokens": generated,
-            "ttft_s": clock.first - start, "latency_s": end - start,
+            "input_tokens": inputs.shape[1],
+            "output_tokens": generated,
+            "ttft_s": clock.first - start,
+            "latency_s": end - start,
             "output_tokens_per_s": generated / (end - start),
             "decode_tokens_per_s": (generated - 1) / (end - clock.first) if generated > 1 else None,
         }
@@ -86,18 +95,26 @@ def main():
     torch.cuda.reset_peak_memory_stats()
     rows = [generate() for _ in range(args.runs)]
     result = {
-        "schema_version": 1, "variant": "fp16", "backend": "transformers_sdpa",
-        "identity": identity(), "environment": provenance(), "gpu": gpu,
-        "workload_id": workload["workload_id"], "prompt_index": 0,
-        "warmup_requests": args.warmup, "rows": rows,
+        "schema_version": 1,
+        "variant": "fp16",
+        "backend": "transformers_sdpa",
+        "identity": identity(),
+        "environment": provenance(),
+        "gpu": gpu,
+        "workload_id": workload["workload_id"],
+        "prompt_index": 0,
+        "warmup_requests": args.warmup,
+        "rows": rows,
         "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
         "peak_reserved_bytes": torch.cuda.max_memory_reserved(),
         "load_peak_allocated_bytes": load_peak,
-        "summary": {key + "_p50": percentile([r[key] for r in rows], 0.5)
-                    for key in ("ttft_s", "latency_s", "output_tokens_per_s")},
+        "summary": {
+            key + "_p50": percentile([r[key] for r in rows], 0.5)
+            for key in ("ttft_s", "latency_s", "output_tokens_per_s")
+        },
         "measurement_notes": "TTFT is host-visible generated token ID, not HTTP/text TTFT. "
-                             "Generation includes streamer token CPU transfers. Memory is PyTorch "
-                             "allocator memory, not total device/NVML usage. Load excluded from timing.",
+        "Generation includes streamer token CPU transfers. Memory is PyTorch "
+        "allocator memory, not total device/NVML usage. Load excluded from timing.",
     }
     write_json(args.output, result)
     print(result["summary"])

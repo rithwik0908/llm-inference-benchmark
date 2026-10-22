@@ -20,7 +20,9 @@ def main():
     vocab = sorted(set(tokenizer.get_vocab().values()) - special)
     count = args.requests or cfg["workload"]["requests"]
     artifact = {
-        "schema_version": 1, "identity": identity(), "seed": cfg["seed"],
+        "schema_version": 1,
+        "identity": identity(),
+        "seed": cfg["seed"],
         "kind": "synthetic_uniform_random_token_ids_no_special_tokens",
         "input_tokens": cfg["workload"]["input_tokens"],
         "output_tokens": cfg["workload"]["output_tokens"],

@@ -57,10 +57,13 @@ def provenance():
         "git_commit": command_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
         "git_dirty": bool(command_output(["git", "-C", str(ROOT), "status", "--porcelain"])),
         "packages": dict(sorted(packages.items())),
-        "nvidia_smi": command_output([
-            "nvidia-smi", "--query-gpu=name,uuid,driver_version,memory.total,memory.free",
-            "--format=csv,noheader",
-        ]),
+        "nvidia_smi": command_output(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,uuid,driver_version,memory.total,memory.free",
+                "--format=csv,noheader",
+            ]
+        ),
     }
 
 
@@ -82,8 +85,14 @@ def require_cuda(min_gib=0):
             f"Need >= {min_gib} GiB VRAM; found {total / 1024**3:.1f}. "
             "Use Colab A100/L4. CPU offloading is intentionally disallowed."
         )
-    return {"name": torch.cuda.get_device_name(), "total_bytes": total, "free_bytes": free,
-            "capability": list(torch.cuda.get_device_capability()), "cuda": torch.version.cuda}
+    return {
+        "name": torch.cuda.get_device_name(),
+        "total_bytes": total,
+        "free_bytes": free,
+        "capability": list(torch.cuda.get_device_capability()),
+        "cuda": torch.version.cuda,
+        "uuid": command_output(["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"]),
+    }
 
 
 def positive(value):
