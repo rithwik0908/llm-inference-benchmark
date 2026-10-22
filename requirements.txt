@@ -1,0 +1,2 @@
+# Lightweight benchmark client, plotting, and development tools (no CUDA download).
+-e .[dev]

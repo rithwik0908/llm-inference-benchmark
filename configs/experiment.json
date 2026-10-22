@@ -1,0 +1,28 @@
+{
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "revision": "c170c708c41dac9275d15a8fff4eca08d52bab71",
+  "seed": 42,
+  "calibration": {
+    "dataset": "HuggingFaceH4/ultrachat_200k",
+    "revision": "8049631c405ae6576f93f445c6b8166f76f5505a",
+    "split": "train_sft",
+    "samples": 256,
+    "max_seq_length": 512
+  },
+  "evaluation": {
+    "dataset": "cais/mmlu",
+    "revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+    "config": "all",
+    "split": "test",
+    "samples": 50
+  },
+  "workload": {"input_tokens": 256, "output_tokens": 128, "requests": 512},
+  "serving": {
+    "max_model_len": 2048,
+    "max_num_seqs": 32,
+    "gpu_memory_utilization": 0.9,
+    "dtype": "float16",
+    "prefix_caching": false,
+    "enforce_eager": true
+  }
+}
