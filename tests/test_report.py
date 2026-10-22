@@ -2,6 +2,7 @@ import copy
 
 import pytest
 
+from inference_bench.client import MEASUREMENT_PROTOCOL
 from inference_bench.common import identity
 from inference_bench.report import validate_pair
 from scripts.plot_results import render
@@ -12,6 +13,7 @@ def serving_pair():
     gpu = {"name": "synthetic-test-GPU", "total_bytes": 1, "capability": [0, 0], "uuid": "test"}
     artifact = {
         "valid": True,
+        "measurement_protocol": MEASUREMENT_PROTOCOL,
         "variant": "fp16",
         "identity": identity(),
         "workload_id": "test-only",
@@ -36,6 +38,8 @@ def serving_pair():
                 "repeat": 0,
                 "summary": {
                     "failed_requests": 0,
+                    "requests_without_visible_text": 0,
+                    "successful_requests": 8,
                     "output_tokens_per_s": 10 * c,
                     "latency_s_p50": 1,
                     "latency_s_p99": 2,
@@ -98,3 +102,10 @@ def test_charts_csv_and_writeup_render_from_valid_data(tmp_path):
     for name in ("throughput.png", "latency.png", "memory_quality.png", "summary.csv", "REPORT.md"):
         assert (tmp_path / name).stat().st_size > 100
     assert "1.00×" in (tmp_path / "REPORT.md").read_text()
+
+
+def test_report_refuses_legacy_text_ttft_artifact():
+    a, b = serving_pair()
+    del a["measurement_protocol"]
+    with pytest.raises(ValueError, match="TTFT protocol"):
+        validate_pair(a, b)

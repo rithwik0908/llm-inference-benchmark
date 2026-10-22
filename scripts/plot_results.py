@@ -70,7 +70,10 @@ def render(fp16, awq, quality, target, baseline, quantization):
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharex=True)
     for ax, metric, title in zip(
-        axes, ("latency_s", "ttft_s"), ("End-to-end latency", "TTFT"), strict=True
+        axes,
+        ("latency_s", "ttft_s"),
+        ("End-to-end latency", "TTFT (streamed token IDs)"),
+        strict=True,
     ):
         for artifact in (fp16, awq):
             selected = [r for r in table if r["variant"] == artifact["variant"]]
@@ -160,6 +163,20 @@ def render(fp16, awq, quality, target, baseline, quantization):
             f"{row['latency_s_p99']:.3f} | {row['ttft_s_p50']:.3f} |"
         )
     text += ["", "Values are medians across repeated runs; p99 is computed within each run.", ""]
+    text += [
+        "TTFT is arrival of the first streamed generated token ID; first-visible-text "
+        "timing is separately recorded and nullable. Throughput counts all generated "
+        "IDs, including special tokens without visible text.",
+        "",
+    ]
+    for artifact in (fp16, awq):
+        invisible = sum(r["summary"]["requests_without_visible_text"] for r in artifact["runs"])
+        total = sum(r["summary"]["successful_requests"] for r in artifact["runs"])
+        text.append(
+            f"- {artifact['variant'].upper()}: {invisible} of {total} successful "
+            "requests across all trials produced no visible text."
+        )
+    text.append("")
     for concurrency in fp16["concurrency_levels"]:
         a = next(r for r in table if r["variant"] == "fp16" and r["concurrency"] == concurrency)
         b = next(r for r in table if r["variant"] == "awq" and r["concurrency"] == concurrency)

@@ -5,6 +5,16 @@ import time
 
 from inference_bench.common import identity
 
+# vLLM 0.15.1 returns delta IDs in each choice when return_token_ids=True:
+# vllm/entrypoints/openai/completion/protocol.py and completion/serving.py.
+MEASUREMENT_PROTOCOL = {
+    "version": 2,
+    "ttft": "first_streamed_generated_token_id",
+    "return_token_ids": True,
+    "accounting": "streamed_token_ids_and_final_usage_must_match",
+    "visible_text_timing": "separate_nullable_field",
+}
+
 
 async def validate_server(session, base_url, manifest):
     if manifest["identity"] != identity():
@@ -36,6 +46,8 @@ async def stream_request(
 ):
     start = time.perf_counter()
     first = None
+    first_text = None
+    streamed_tokens = 0
     usage = None
     done = False
     finish = None
@@ -50,6 +62,9 @@ async def stream_request(
         "max_tokens": output_tokens,
         "ignore_eos": True,
         "stream": True,
+        "n": 1,
+        "echo": False,
+        "return_token_ids": True,
         "stream_options": {"include_usage": True},
     }
     try:
@@ -57,6 +72,7 @@ async def stream_request(
             if response.status != 200:
                 raise RuntimeError(f"HTTP {response.status}: {(await response.text())[:500]}")
             async for event in sse_events(response.content):
+                received_at = time.perf_counter()
                 event_count += 1
                 if events is not None:
                     events.append(event)
@@ -69,10 +85,22 @@ async def stream_request(
                 if data.get("usage"):
                     usage = data["usage"]
                 for choice in data.get("choices", []):
+                    if choice.get("index", 0) != 0:
+                        raise RuntimeError("Unexpected extra completion choice")
+                    token_ids = choice.get("token_ids")
+                    if token_ids is not None:
+                        if not isinstance(token_ids, list) or any(
+                            type(token) is not int or token < 0 for token in token_ids
+                        ):
+                            raise RuntimeError("Invalid streamed token_ids")
+                        if token_ids:
+                            if first is None:
+                                first = received_at
+                            streamed_tokens += len(token_ids)
                     if choice.get("text"):
                         nonempty_chunks += 1
-                        if first is None:
-                            first = time.perf_counter()
+                        if first_text is None:
+                            first_text = received_at
                     if choice.get("finish_reason"):
                         finish = choice["finish_reason"]
         if not done or first is None or not usage or not finish:
@@ -80,7 +108,7 @@ async def stream_request(
                 name
                 for name, observed in (
                     ("DONE", done),
-                    ("nonempty_text", first is not None),
+                    ("generated_token_ids", first is not None),
                     ("usage", bool(usage)),
                     ("finish_reason", bool(finish)),
                 )
@@ -89,6 +117,8 @@ async def stream_request(
             raise RuntimeError("Incomplete stream: missing " + ", ".join(missing))
         if usage["completion_tokens"] != output_tokens:
             raise RuntimeError("Output token count differs from fixed workload")
+        if streamed_tokens != usage["completion_tokens"]:
+            raise RuntimeError("Streamed token ID count differs from final usage")
         if usage["prompt_tokens"] != len(prompt_ids):
             raise RuntimeError("Server prompt count differs from frozen input token IDs")
         return {
@@ -98,6 +128,9 @@ async def stream_request(
             "input_tokens": usage["prompt_tokens"],
             "latency_s": time.perf_counter() - start,
             "ttft_s": first - start,
+            "first_visible_text_s": first_text - start if first_text is not None else None,
+            "visible_text_chunks": nonempty_chunks,
+            "streamed_output_tokens": streamed_tokens,
             "finish_reason": finish,
             **({"events": events} if capture_events else {}),
         }
@@ -112,6 +145,8 @@ async def stream_request(
             "stream_diagnostics": {
                 "done": done,
                 "nonempty_text_chunks": nonempty_chunks,
+                "streamed_output_tokens": streamed_tokens,
+                "first_generated_token_observed": first is not None,
                 "finish_reason": finish,
                 "usage": usage,
                 "event_count": event_count,

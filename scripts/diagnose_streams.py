@@ -10,7 +10,7 @@ from pathlib import Path
 
 import aiohttp
 
-from inference_bench.client import stream_request, validate_server
+from inference_bench.client import MEASUREMENT_PROTOCOL, stream_request, validate_server
 from inference_bench.common import provenance, read_frozen, read_json, write_json
 
 
@@ -24,7 +24,8 @@ async def diagnose(args):
     if Path(args.output).exists():
         raise FileExistsError("Preserve prior diagnostics or choose another --output")
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "measurement_protocol": MEASUREMENT_PROTOCOL,
         "kind": "diagnostic_replay_not_benchmark",
         "server": server,
         "environment": provenance(),

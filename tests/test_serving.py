@@ -43,7 +43,9 @@ def test_stream_token_accounting_and_bounded_concurrency():
             await response.prepare(request)
             await response.write(b': heartbeat\r\ndata: {"choices":')
             await asyncio.sleep(0.005)
-            await response.write(b' [{"text": "hi", "finish_reason": null}]}\r\n\r\n')
+            await response.write(
+                b' [{"text": "hi", "token_ids": [10, 11, 12], "finish_reason": null}]}\r\n\r\n'
+            )
             usage = {
                 "prompt_tokens": len(payload["prompt"]),
                 "completion_tokens": payload["max_tokens"],
@@ -74,14 +76,29 @@ def test_stream_token_accounting_and_bounded_concurrency():
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("failure", ["http", "missing_usage", "wrong_count", "missing_done"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "http",
+        "missing_usage",
+        "wrong_count",
+        "missing_done",
+        "missing_token_ids",
+        "wrong_token_id_count",
+    ],
+)
 def test_bad_stream_is_recorded_as_failure(failure):
     async def scenario():
         async def handler(request):
             if failure == "http":
                 return web.Response(status=503, text="test-only overload")
             usage = {"prompt_tokens": 2, "completion_tokens": 7 if failure == "wrong_count" else 3}
-            event = {"choices": [{"text": "hi", "finish_reason": "length"}]}
+            choice = {"text": "hi", "finish_reason": "length"}
+            if failure != "missing_token_ids":
+                choice["token_ids"] = (
+                    [10, 11] if failure == "wrong_token_id_count" else [10, 11, 12]
+                )
+            event = {"choices": [choice]}
             if failure != "missing_usage":
                 event["usage"] = usage
             text = f"data: {json.dumps(event)}\n\n"
@@ -107,7 +124,7 @@ def test_load_sweep_persists_valid_json_csv(tmp_path):
         async def handler(request):
             payload = await request.json()
             event = {
-                "choices": [{"text": "test", "finish_reason": "length"}],
+                "choices": [{"text": "test", "token_ids": [10, 11, 12], "finish_reason": "length"}],
                 "usage": {
                     "prompt_tokens": len(payload["prompt"]),
                     "completion_tokens": payload["max_tokens"],
@@ -160,7 +177,13 @@ def test_replay_captures_raw_events_and_distinguishes_invisible_text(empty_text)
     async def scenario():
         async def handler(request):
             event = {
-                "choices": [{"text": "" if empty_text else "visible", "finish_reason": "length"}],
+                "choices": [
+                    {
+                        "text": "" if empty_text else "visible",
+                        "token_ids": [10, 11, 12],
+                        "finish_reason": "length",
+                    }
+                ],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 3},
             }
             return web.Response(
@@ -176,17 +199,52 @@ def test_replay_captures_raw_events_and_distinguishes_invisible_text(empty_text)
                 )
             assert result["events"][-1] == "[DONE]"
             assert json.loads(result["events"][0])["usage"]["completion_tokens"] == 3
-            assert result["success"] is not empty_text
+            assert result["success"]
+            assert result["output_tokens"] == result["streamed_output_tokens"] == 3
+            assert result["ttft_s"] > 0
             if empty_text:
-                assert result["error"] == "RuntimeError: Incomplete stream: missing nonempty_text"
-                assert result["stream_diagnostics"] == {
-                    "done": True,
-                    "nonempty_text_chunks": 0,
-                    "finish_reason": "length",
+                assert result["first_visible_text_s"] is None
+                assert result["visible_text_chunks"] == 0
+            else:
+                assert result["first_visible_text_s"] >= result["ttft_s"]
+        finally:
+            await runner.cleanup()
+
+    asyncio.run(scenario())
+
+
+def test_token_ttft_precedes_visible_text_and_excludes_echoed_prompt_ids():
+    async def scenario():
+        async def handler(request):
+            payload = await request.json()
+            assert payload["return_token_ids"] is True
+            assert payload["echo"] is False and payload["n"] == 1
+            response = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
+            await response.prepare(request)
+            events = [
+                {"choices": [{"text": "", "prompt_token_ids": [1, 2], "token_ids": []}]},
+                {"choices": [{"text": "", "token_ids": [10]}]},
+                {
+                    "choices": [
+                        {"text": "visible", "token_ids": [11, 12], "finish_reason": "length"}
+                    ],
                     "usage": {"prompt_tokens": 2, "completion_tokens": 3},
-                    "event_count": 2,
-                }
-                assert result["output_tokens"] == 0  # Validation has not been relaxed.
+                },
+            ]
+            for event in events:
+                await asyncio.sleep(0.01)
+                await response.write(f"data: {json.dumps(event)}\n\n".encode())
+            await response.write(b"data: [DONE]\n\n")
+            await response.write_eof()
+            return response
+
+        runner, url = await fake_server(handler)
+        try:
+            async with aiohttp.ClientSession() as session:
+                result = await stream_request(session, url, "test", [1, 2], 3, 0)
+            assert result["success"]
+            assert result["streamed_output_tokens"] == 3
+            assert 0 < result["ttft_s"] < result["first_visible_text_s"] < result["latency_s"]
         finally:
             await runner.cleanup()
 

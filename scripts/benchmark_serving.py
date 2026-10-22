@@ -8,7 +8,7 @@ from pathlib import Path
 
 import aiohttp
 
-from inference_bench.client import stream_request, validate_server
+from inference_bench.client import MEASUREMENT_PROTOCOL, stream_request, validate_server
 from inference_bench.common import (
     identity,
     positive,
@@ -54,7 +54,8 @@ async def benchmark(args):
     if output.exists():
         raise FileExistsError(f"Preserve the previous run or choose another --output: {output}")
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "measurement_protocol": MEASUREMENT_PROTOCOL,
         "variant": server["variant"],
         "identity": identity(),
         "server": server,
@@ -68,8 +69,11 @@ async def benchmark(args):
         "runs": [],
         "valid": False,
         "methodology": "Closed loop, no think time, one worker per concurrent request. "
-        "Latency begins at dispatch (no artificial client queue). TTFT is first "
-        "nonempty streamed text chunk. Warmup excluded. Throughput counts successful "
+        "Latency begins at dispatch (no artificial client queue). TTFT is arrival of first "
+        "generated token ID in the HTTP stream, including tokens without visible text. "
+        "First visible text is recorded separately and can be null. Streamed token counts "
+        "must match final usage and the fixed output budget. Warmup excluded. "
+        "Throughput counts successful "
         "completion tokens / full run wall time, including failed requests. "
         "A failed request invalidates the experiment; there are no retries.",
     }

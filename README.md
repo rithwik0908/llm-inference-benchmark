@@ -99,8 +99,13 @@ when the experiments finish (`*.log` is ignored, so add selected sanitized logs 
   512 requests per run, three repetitions per concurrency. EOS stopping is disabled.
   Closed-loop workers dispatch at most the selected concurrency. Throughput is successful
   output tokens divided by total run wall time; p50/p99 are per-request end-to-end latency.
-  TTFT is time to first nonempty HTTP text chunk. That differs from baseline token-ID TTFT.
+  TTFT is arrival of the first generated token ID in the HTTP stream. First-visible-text
+  timing is recorded separately and may be null. Streamed output IDs must match the
+  requested budget and final usage. This differs from the baseline's in-process token-ID
+  clock. Token IDs add HTTP/JSON overhead equally to both serving variants.
   Raw measurements, failures, runtime versions, hardware, and model identity are saved.
+  Generated-token throughput includes special tokens with no visible text; it is not
+  useful-text throughput. Empty-text completions are counted and reported separately.
 - **Quality:** zero-shot greedy answers to one frozen 50-question MMLU subset. Subjects and
   rows are shuffled reproducibly before subject round-robin selection. This is a broad
   smoke test, not the full benchmark. Strict A–D parsing counts malformed answers as wrong;

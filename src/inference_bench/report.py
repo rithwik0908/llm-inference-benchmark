@@ -2,8 +2,15 @@
 
 from statistics import median
 
+from inference_bench.client import MEASUREMENT_PROTOCOL
+
 
 def validate_pair(fp16, awq):
+    for artifact in (fp16, awq):
+        if artifact.get("measurement_protocol") != MEASUREMENT_PROTOCOL:
+            raise ValueError(
+                "Serving results use an older/different TTFT protocol; rerun both sweeps"
+            )
     if (fp16["variant"], awq["variant"]) != ("fp16", "awq"):
         raise ValueError("Need FP16 and AWQ serving artifacts in that order")
     keys = (

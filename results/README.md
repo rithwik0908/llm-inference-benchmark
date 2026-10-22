@@ -58,3 +58,22 @@ Included setup artifacts were prepared against the real pinned tokenizer and MML
 `preflight_local.json` describes the lightweight client environment: CUDA readiness is
 false because CUDA PyTorch is not installed there. Its `nvidia_smi` field records the
 actual RTX 5060 hardware; this is not a GPU inference failure or a performance measurement.
+
+
+Serving measurement protocol version 2 requests vLLM's `return_token_ids` extension.
+`ttft_s` is the arrival of the first **generated** token ID; echoed prompt IDs and empty
+prefill chunks do not count. `first_visible_text_s` is separately recorded and is null
+when no printable text arrives. Every successful response must contain `[DONE]`, a finish
+reason, final usage, and exactly the requested number of streamed generated IDs. Empty
+text alone does not mean the transport failed. `requests_without_visible_text` makes
+this behavior explicit. Synthetic random-token inputs can produce such completions;
+token throughput counts generated IDs, not useful text. Extra ID serialization/transport
+cost is included for both variants. Charts refuse artifacts from different/older protocols.
+
+The earlier text-only validator rejected complete responses when all decoded text chunks
+were empty. Preserve those failed sweep/probe files as diagnostics; never flip their
+`valid` flag, backfill their missing TTFT, or reuse them as final measured sweeps. Re-run
+both serving variants under protocol 2 after a targeted replay succeeds. The model,
+precision, frozen prompts, token budget, and quality evaluation are unchanged. The
+pinned API defines delta IDs in each streaming choice:
+[vLLM 0.15.1 completion protocol](https://github.com/vllm-project/vllm/blob/v0.15.1/vllm/entrypoints/openai/completion/protocol.py).
