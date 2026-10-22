@@ -1,9 +1,10 @@
 # Artifacts and measurement status
 
-**No model performance, quality, or laptop-success measurements have been collected.**
-Prepared inputs and preflight reports, when present, are real setup artifacts rather than
-performance evidence. The plotter requires real measurement files and refuses to substitute
-example numbers. Tests use synthetic values only under pytest temporary directories.
+**Real measurements are committed for the A100 FP16 baseline, AWQ quantization, paired
+50-question MMLU evaluation, both complete serving sweeps, and the RTX 5060 laptop demo.**
+See [REPORT.md](REPORT.md) for the generated cloud comparison and the repository README
+for interpretation and laptop results. The plotter refuses invalid or incomparable sweeps.
+Tests use synthetic values only under pytest temporary directories.
 
 | Artifact | Contents |
 |---|---|
@@ -18,6 +19,8 @@ example numbers. Tests use synthetic values only under pytest temporary director
 | `quality_{variant}.json` | Each generated answer, parsing outcome, usage, and correctness |
 | `quality_delta.json` | Paired accuracy delta in pp, changed answers, bootstrap interval |
 | `edge_demo.json` | Actual laptop generation, offline timing and settings, checkpoint identity |
+| `edge_vram.csv`, `edge_vram_summary.json` | 200 ms sampled device-wide memory usage and peak; includes other processes |
+| `edge_demo.log` | Actual laptop startup, selected kernels, warnings, and generated output |
 | `summary.csv`, `REPORT.md`, `*.png` | Derived report and three charts; generated only from valid data |
 
 Keep both cloud variants on the **same physical GPU in the same Colab session**. Compare
