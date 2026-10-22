@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "identity": {
+    "model": "mistralai/Mistral-7B-Instruct-v0.3",
+    "revision": "c170c708c41dac9275d15a8fff4eca08d52bab71"
+  },
+  "eval_set_id": "7d06492ff9a77e6d3e74af1fb0e0815c34fc388d7a9e27623fd42fa0a3d42b6a",
+  "questions": 50,
+  "fp16_checkpoint_id": "6c09915d1bfd13d662f92663705c43f4c7dd15a4f281b313d1c1e4b14fbe92a8",
+  "awq_checkpoint_id": "015d26b4c2fec06bccdf35e901128dea1023ebca83642f1a8a5e3505dd6525c7",
+  "fp16_accuracy_pct": 68.0,
+  "awq_accuracy_pct": 66.0,
+  "accuracy_delta_pp_awq_minus_fp16": -2.0,
+  "paired_bootstrap_95ci_pp": [
+    -6.0,
+    0.0
+  ],
+  "fp16_invalid": 1,
+  "awq_invalid": 1,
+  "changed_answers": 5,
+  "resolution_pp": 2.0,
+  "limitations": "Small zero-shot smoke evaluation, not full MMLU. CI resamples questions as independent and does not establish quality equivalence. Invalid answers count as wrong; transport errors abort evaluation."
+}
