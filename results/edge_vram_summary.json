@@ -1,0 +1,8 @@
+{
+  "source": "edge_vram.csv",
+  "gpu_uuid": "243eb1aa-5033-2e13-30ef-404a25a45c5d",
+  "sample_count": 1038,
+  "sample_interval_ms": 200,
+  "sampled_device_used_peak_mib": 7579.0,
+  "notes": "Sampled device-wide peak includes other processes and may miss short spikes."
+}
