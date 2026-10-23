@@ -210,6 +210,38 @@ and variable lengths, randomize sweep order, test CUDA graphs and speculative de
 expand concurrency, and run full MMLU plus held-out perplexity. Measure laptop startup
 and memory under representative multi-turn workloads before claiming deployment readiness.
 
+## Why AWQ and FP16 landed near parity
+
+The [measured summaries](results/summary.csv), derived from the raw
+[FP16](results/serving_fp16.json) and [AWQ](results/serving_awq.json) sweeps, show a
+small AWQ advantage at concurrency 1 (43.77 versus 42.61 output tok/s), but no
+advantage at concurrency 32 (1,096.96 versus 1,109.85 tok/s). At concurrency 32,
+AWQ also had slightly higher median request latency (3.730 versus 3.684 s).
+A plausible hypothesis is that reducing weight reads did not remove the dominant
+end-to-end cost, or that those savings were offset by quantized-kernel/dequantization
+costs and other execution overhead. These timings alone cannot distinguish a
+compute-bound workload from a memory-bandwidth-bound one; the near parity even at
+concurrency 1 also means batching alone is an insufficient explanation.
+
+Continuous batching can amortize weight reads across active sequences, increasing
+computation per weight byte and potentially reducing the benefit of weight compression.
+The scaling is consistent with increasing resource pressure: FP16 throughput rose
+from 618.79 to 1,109.85 tok/s between concurrency 16 and 32, while median request
+latency rose from 3.308 to 3.684 s. However, throughput was still growing substantially;
+we did not establish a saturation point or measure the engine's actual batch-size
+trajectory. Compute saturation before weight-read savings could matter is therefore
+a candidate explanation, not a demonstrated finding. Prefill, decode, kernel launches,
+and scheduling are combined in these end-to-end measurements.
+
+To expose a quantization speedup, future experiments could test hardware with tighter
+memory-bandwidth constraints or larger models that fit in both precisions, while holding
+the workload and engine settings fixed. A wider concurrency sweep would locate the
+scaling knee; higher concurrency could also increase compute pressure rather than favor
+AWQ, so it is not a guaranteed route to a speedup. Confirming the bottleneck requires
+profiling with **Nsight Systems (`nsys`) and the PyTorch profiler**, supplemented by
+kernel-level counters for compute utilization and memory traffic. That profiling is
+future work; no direct bottleneck profiling was performed here.
+
 Implementation references: [pinned AWQ example](https://github.com/vllm-project/llm-compressor/blob/0.9.0/examples/awq/llama_example.py),
 [vLLM quantization](https://docs.vllm.ai/en/v0.15.1/features/quantization/),
 [Mistral model card](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3),
